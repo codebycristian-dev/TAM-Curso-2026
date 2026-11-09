@@ -114,7 +114,7 @@ scripts se ejecutan desde esa carpeta: las figuras y `resultados.json` se escrib
 
 | Archivo | Qué es |
 | --- | --- |
-| `Solución_Parcial-1_TAM_2026 pdf` | Parcial 1 resuelto, en PDF |
+| `Solución_Parcial-1_TAM_2026.pdf` | Parcial 1 resuelto, en PDF |
 | `Parcial_1_TAM_2026_2_Pearson_RKHS.pdf` | Material del parcial 1 sobre el coeficiente de Pearson y RKHS, en PDF |
 
 ---
