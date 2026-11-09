@@ -6,3 +6,7 @@ ipython>=8.0
 ipykernel>=6.29
 ipywidgets>=8.1
 Pillow>=10.0
+# App interactiva con Streamlit (reemplaza la interfaz de ipywidgets del cuaderno).
+streamlit>=1.67
+streamlit-drawable-canvas>=0.13
+pandas>=2.2
