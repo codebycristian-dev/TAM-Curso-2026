@@ -77,4 +77,17 @@ que se sostiene sola.
 | 1 | `2cf8210` | `tam_mnist/preproceso.py` y sus tests (421 líneas) |
 | 2 | `59b673a` | `tam_mnist/modelo.py`, `entrenar_modelo.py` y sus tests |
 | 3 | `56275af` | `app.py`, sus tests y las dependencias |
-| 4 | — | README, `.gitignore` y este documento |
+| 4 | `1a24cc1` | README, `.gitignore` y este documento |
+| 5 | `f988418` | Reorganización del repositorio en `Talleres/` y `Parciales/`, README reescrito |
+
+## Log posterior (fotos reales y reorganización)
+
+**L7** — El usuario reportó que la app fallaba con una foto de un dígito hecho a mano sobre papel con lapicero negro. Reproducción con un banco de fotos sintéticas (900×900, ruido de sensor, sombra lateral, escritorio en el borde, JPEG, subexposición; 30 dígitos por escenario): con el preproceso de umbral fijo, ruido y sombra daban 0/30, escritorio 1/30 y hoja en blanco ni siquiera se rechazaba. Diagnóstico: el umbral fijo sobre la imagen completa detectaba ruido y sombra como tinta, el "trazo" pasaba a ser la foto entera y el dígito se achicaba hasta desaparecer.
+
+Arreglo: fondo local con desenfoque, separación de tinta con polaridad elegida por masa, umbral de Otsu con piso absoluto (`MIN_INK`), selección del conjunto de tinta más pesado sin tocar el borde, relleno de huecos y centrado por masa. Sus reglas quedaron pinneadas en `tests/test_preproceso.py` (25 tests verdes en total, sin modelo ni dataset).
+
+**L8** — Verificación con las fotos reales del usuario (`~/Descargas/1.jpeg`, `3.jpeg`, `5.jpeg`, `9.jpeg`, fotos de celular): 1→1 con 98.9 %, 3→3 con 99.8 %, 5→5 con 99.1 %, 9→9 con 96.6 %. El fallo original que reportó el usuario venía de la versión anterior del preproceso, que era la que tenía cargada la app en ese momento.
+
+Queda un hueco conocido: en el banco sintético los escenarios de ruido, sombra y escritorio siguen bajos, mientras las fotos reales funcionan. El generador sintético resultó más duro que la realidad; se prioriza el comportamiento real verificado sobre el ajuste al generador.
+
+**L9** — El usuario reorganizó el repositorio (`Talleres/Practica-MNIST`, `Talleres/Taller-ALternativo-Repaso`, `Parciales/Parcial-1`) y pidió publicar. `TAREA-TAM.txt` había quedado fuera de la mudanza y se restauró desde Git en su ruta nueva. El `.gitignore` del artefacto se movió con la carpeta.
