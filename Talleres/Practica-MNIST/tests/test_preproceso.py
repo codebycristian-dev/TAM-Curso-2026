@@ -8,7 +8,7 @@ from io import BytesIO
 
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from tam_mnist.preproceso import (
     MENSAJE_SIN_DIGITO,
@@ -170,3 +170,127 @@ def test_predict_probabilities_returns_ranked_digits():
     assert result.confidence == pytest.approx(0.7, abs=1e-6)
     assert [digit for digit, _ in result.ranking] == [3, 7, 1, 0, 2, 4, 5, 6, 8, 9]
     assert sum(probability for _, probability in result.ranking) == pytest.approx(1.0, abs=1e-5)
+
+
+# --- Fotos reales: papel blanco, lapicero negro, cámara de celular ---
+#
+# Los casos de abajo son los que rompen un umbral fijo sobre la imagen completa:
+# el ruido del sensor, la sombra del papel y los objetos del fondo superan el
+# umbral, el "trazo" detectado pasa a ser la foto entera y el dígito se achica
+# hasta desaparecer. Cada test exige que el dígito sobreviva al preproceso.
+
+
+def photo_of_digit(
+    mnist_digit,
+    *,
+    size: int = 600,
+    stroke: int = 7,
+    noise: float = 0.0,
+    gradient: float = 0.0,
+    desk: int = 0,
+    quality: int | None = 60,
+    seed: int = 0,
+) -> bytes:
+    """Simula la foto de un dígito hecho con lapicero sobre una hoja de papel."""
+    rng = np.random.default_rng(seed)
+    digit = (mnist_digit.reshape(28, 28) * 255).astype(np.uint8)
+    big = Image.fromarray(digit).resize((size // 3, size // 3), Image.Resampling.LANCZOS)
+    big = big.filter(ImageFilter.MaxFilter(stroke))
+
+    sheet = np.full((size, size), 243.0, dtype=np.float64)
+    if gradient:
+        rows, columns = np.mgrid[0:size, 0:size]
+        sheet -= gradient * size * 0.5 * (columns / size)
+        sheet -= gradient * size * 0.3 * (rows / size) ** 2
+    if desk:
+        sheet[:desk, :] = 70
+        sheet[-desk:, :] = 65
+        sheet[:, :desk] = 75
+        sheet[:, -desk:] = 60
+
+    top = (size - big.height) // 2
+    left = (size - big.width) // 2
+    ink = np.asarray(big, dtype=np.float64) / 255.0
+    sheet[top : top + big.height, left : left + big.width] *= 1.0 - ink
+
+    if noise:
+        sheet += rng.normal(0.0, noise, sheet.shape)
+
+    photo = Image.fromarray(np.clip(sheet, 0, 255).astype(np.uint8), mode="L")
+    buffer = BytesIO()
+    if quality is not None:
+        photo.save(buffer, format="JPEG", quality=quality)
+    else:
+        photo.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def assert_digit_survived(preview: np.ndarray) -> None:
+    """El trazo tiene que ocupar el lienzo, no quedar reducido a una manchita."""
+    rows, columns = np.where(preview > 0.2)
+    assert rows.size > 0, "el preproceso perdió el trazo"
+    height = rows.max() - rows.min() + 1
+    width = columns.max() - columns.min() + 1
+    assert max(height, width) >= 14, (
+        f"el trazo quedó de {height}×{width} píxeles: el preproceso está recortando "
+        "la foto completa en vez del dígito"
+    )
+
+
+@pytest.fixture
+def mnist_digit():
+    """Un 3 de MNIST, el mismo formato que entrega el conjunto de prueba."""
+    from tam_mnist.modelo import load_dataset
+
+    _, (x_test, y_test) = load_dataset()
+    for index, label in enumerate(y_test[:200]):
+        if int(label) == 3:
+            return x_test[index]
+    pytest.skip("no hay un 3 en las primeras 200 imágenes")
+
+
+def test_photo_with_camera_noise_keeps_the_digit(mnist_digit):
+    """El ruido del sensor no puede convertirse en el trazo detectado."""
+    _, preview = preprocess_bytes(photo_of_digit(mnist_digit, noise=6.0))
+    assert_digit_survived(preview)
+
+
+def test_photo_with_uneven_lighting_keeps_the_digit(mnist_digit):
+    """Una sombra sobre el papel no puede tragarse el dígito."""
+    _, preview = preprocess_bytes(photo_of_digit(mnist_digit, gradient=0.45))
+    assert_digit_survived(preview)
+
+
+def test_photo_with_desk_in_the_frame_keeps_the_digit(mnist_digit):
+    """El escritorio alrededor de la hoja no es tinta."""
+    _, preview = preprocess_bytes(photo_of_digit(mnist_digit, desk=60))
+    assert_digit_survived(preview)
+
+
+def test_realistic_photo_keeps_the_digit(mnist_digit):
+    """Ruido, sombra, escritorio y compresión JPEG sueltos a la vez."""
+    photo = photo_of_digit(mnist_digit, noise=5.0, gradient=0.35, desk=50, quality=55)
+    _, preview = preprocess_bytes(photo)
+    assert_digit_survived(preview)
+
+
+def test_light_stroke_on_dark_background_is_still_detected():
+    """Una captura de pantalla de MNIST (trazo claro sobre negro) sigue sirviendo."""
+    pixels = np.zeros((120, 120), dtype=np.uint8)
+    pixels[30:90, 55:65] = 255  # trazo claro sobre fondo oscuro
+
+    _, preview = preprocess_image(make_image(pixels))
+    assert_digit_survived(preview)
+
+
+def test_blank_paper_is_rejected_as_before():
+    """Una hoja en blanco, con su ruido, no tiene dígito."""
+    blank = np.full((400, 400), 243, dtype=np.uint8)
+    noisy = np.clip(blank + np.random.default_rng(0).normal(0, 6, blank.shape), 0, 255)
+    buffer = BytesIO()
+    Image.fromarray(noisy.astype(np.uint8), mode="L").save(buffer, format="JPEG", quality=60)
+
+    with pytest.raises(ValueError) as error:
+        preprocess_bytes(buffer.getvalue())
+
+    assert str(error.value) == MENSAJE_SIN_DIGITO

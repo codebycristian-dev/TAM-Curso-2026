@@ -11,5 +11,5 @@ __pycache__/
 *.synctex.gz
 
 # Artefacto entrenado de la app MNIST (se regenera con entrenar_modelo.py)
-Practica-MNIST/modelo/
+Talleres/Practica-MNIST/modelo/
 .pytest_cache/
