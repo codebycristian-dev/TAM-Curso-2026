@@ -66,3 +66,15 @@ tabla de arquitectura (entrada + 3 capas `Dense`, parámetros entrenables).
 Causa: el cuaderno centra por el punto medio de la caja del trazo, mientras que MNIST normaliza por centro de masa. El corrimiento de 2–4 píxeles basta para que la red densa —que no es invariante a traslaciones— confunda un 7 con un 2. Decisión del usuario: `Centro de masa y listo`. La arquitectura, los pesos y el entrenamiento quedan idénticos a los del cuaderno; cambia sólo el centrado de las imágenes externas. Medición final por `preprocess_bytes`: 95/100.
 
 **L6** — Verificación del artefacto entrenado: exactitud 96.01 % en prueba (5 épocas, semilla 42), `AppTest` contra el modelo real sin excepciones, primera imagen del test set predicha como 7 con 99.5 % (etiqueta real 7), 19/20 aciertos en las primeras 20 imágenes, y servidor `streamlit run app.py` con `/_stcore/health` en `ok` y la página en 200.
+
+## Slices
+
+El repo entrega por unidades de trabajo revisables; cada commit es una rebanada
+que se sostiene sola.
+
+| Slice | Commit | Contenido |
+| --- | --- | --- |
+| 1 | `2cf8210` | `tam_mnist/preproceso.py` y sus tests (421 líneas) |
+| 2 | `59b673a` | `tam_mnist/modelo.py`, `entrenar_modelo.py` y sus tests |
+| 3 | `56275af` | `app.py`, sus tests y las dependencias |
+| 4 | — | README, `.gitignore` y este documento |

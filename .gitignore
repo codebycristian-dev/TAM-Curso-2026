@@ -1,4 +1,5 @@
 .venv/
+.venv312/
 __pycache__/
 .ipynb_checkpoints/
 
@@ -8,3 +9,7 @@ __pycache__/
 *.out
 *.toc
 *.synctex.gz
+
+# Artefacto entrenado de la app MNIST (se regenera con entrenar_modelo.py)
+Practica-MNIST/modelo/
+.pytest_cache/
