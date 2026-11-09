@@ -32,7 +32,6 @@ TAM-Curso-2026/
 | `entrenar_modelo.py` | Entrena la red del cuaderno y guarda el artefacto `modelo/mnist_digits.keras` que consume la app |
 | `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`) y modelo (`modelo.py`) |
 | `tests/` | 25 tests de preprocesamiento, modelo y app, sin navegador |
-| `TAREA-TAM.txt` | Enunciado de la tarea: interfaz para cargar un dígito escrito a mano y predecirlo |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
@@ -116,6 +115,7 @@ scripts se ejecutan desde esa carpeta: las figuras y `resultados.json` se escrib
 | Archivo | Qué es |
 | --- | --- |
 | `Solución_Parcial-1_TAM_2026 pdf` | Parcial 1 resuelto, en PDF |
+| `Parcial_1_TAM_2026_2_Pearson_RKHS.pdf` | Material del parcial 1 sobre el coeficiente de Pearson y RKHS, en PDF |
 
 ---
 
