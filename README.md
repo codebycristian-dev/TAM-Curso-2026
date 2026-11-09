@@ -16,7 +16,6 @@ TAM-Curso-2026/
 │   └── Taller-ALternativo-Repaso/  taller de repaso: solución, figuras e informe
 ├── Parciales/
 │   └── Parcial-1/                  parcial resuelto
-├── odd/tasks/                      documentos de trabajo de cada feature
 └── README.md
 ```
 
@@ -71,8 +70,7 @@ directorio de trabajo debe ser `Talleres/Practica-MNIST/`, porque el cuaderno
 resuelve rutas relativas a esa carpeta. La primera ejecución descarga MNIST y
 necesita conexión a Internet; después queda en caché.
 
-**Dos diferencias deliberadas de la app con el cuaderno**, documentadas en
-`odd/tasks/practica-mnist-streamlit.md`:
+**Dos diferencias deliberadas de la app con el cuaderno:**
 
 1. Al preparar una imagen externa, la app centra el trazo por su **centro de
    masa**, que es como MNIST normaliza sus propios dígitos, en lugar de por el
@@ -137,9 +135,3 @@ uv pip install --python .venv312/bin/python -r Talleres/Practica-MNIST/requireme
 
 `.venv312/` es el entorno de la práctica de MNIST. El taller de repaso usa el
 `.venv` de la raíz, con `numpy`, `matplotlib` y `scikit-learn`.
-
-## Documentos de trabajo
-
-Cada feature grande deja su documento en `odd/tasks/`: specs numeradas, tareas y
-bitácora con la evidencia medida. La de la app de Streamlit está en
-`odd/tasks/practica-mnist-streamlit.md`.
