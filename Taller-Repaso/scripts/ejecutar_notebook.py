@@ -9,7 +9,7 @@ import nbformat
 from nbclient import NotebookClient
 
 RAIZ = Path(__file__).resolve().parent.parent
-RUTA = RAIZ / "solucion_taller.ipynb"
+RUTA = RAIZ / "solucion" / "solucion_taller.ipynb"
 
 nb = nbformat.read(RUTA, as_version=4)
 cliente = NotebookClient(

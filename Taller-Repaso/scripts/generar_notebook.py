@@ -871,6 +871,7 @@ nb.metadata.update({
     "title": "Taller 1 TAM 2026-2 - Solucion",
 })
 
-salida = RAIZ / "solucion_taller.ipynb"
+salida = RAIZ / "solucion" / "solucion_taller.ipynb"
+salida.parent.mkdir(parents=True, exist_ok=True)
 nbf.write(nb, salida)
 print(f"Cuaderno escrito en {salida} ({len(cells)} celdas)")
