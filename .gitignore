@@ -13,3 +13,6 @@ __pycache__/
 # Artefacto entrenado de la app MNIST (se regenera con entrenar_modelo.py)
 Talleres/Practica-MNIST/modelo/
 .pytest_cache/
+
+# Notas de trabajo locales: nunca se publican
+odd/

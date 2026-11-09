@@ -16,7 +16,6 @@ TAM-Curso-2026/
 │   └── Taller-ALternativo-Repaso/  taller de repaso: solución, figuras e informe
 ├── Parciales/
 │   └── Parcial-1/                  parcial resuelto
-├── odd/tasks/                      documentos de trabajo de cada feature
 └── README.md
 ```
 
@@ -33,7 +32,6 @@ TAM-Curso-2026/
 | `entrenar_modelo.py` | Entrena la red del cuaderno y guarda el artefacto `modelo/mnist_digits.keras` que consume la app |
 | `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`) y modelo (`modelo.py`) |
 | `tests/` | 25 tests de preprocesamiento, modelo y app, sin navegador |
-| `TAREA-TAM.txt` | Enunciado de la tarea: interfaz para cargar un dígito escrito a mano y predecirlo |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
@@ -71,8 +69,7 @@ directorio de trabajo debe ser `Talleres/Practica-MNIST/`, porque el cuaderno
 resuelve rutas relativas a esa carpeta. La primera ejecución descarga MNIST y
 necesita conexión a Internet; después queda en caché.
 
-**Dos diferencias deliberadas de la app con el cuaderno**, documentadas en
-`odd/tasks/practica-mnist-streamlit.md`:
+**Dos diferencias deliberadas de la app con el cuaderno:**
 
 1. Al preparar una imagen externa, la app centra el trazo por su **centro de
    masa**, que es como MNIST normaliza sus propios dígitos, en lugar de por el
@@ -118,6 +115,7 @@ scripts se ejecutan desde esa carpeta: las figuras y `resultados.json` se escrib
 | Archivo | Qué es |
 | --- | --- |
 | `Solución_Parcial-1_TAM_2026 pdf` | Parcial 1 resuelto, en PDF |
+| `Parcial_1_TAM_2026_2_Pearson_RKHS.pdf` | Material del parcial 1 sobre el coeficiente de Pearson y RKHS, en PDF |
 
 ---
 
@@ -137,9 +135,3 @@ uv pip install --python .venv312/bin/python -r Talleres/Practica-MNIST/requireme
 
 `.venv312/` es el entorno de la práctica de MNIST. El taller de repaso usa el
 `.venv` de la raíz, con `numpy`, `matplotlib` y `scikit-learn`.
-
-## Documentos de trabajo
-
-Cada feature grande deja su documento en `odd/tasks/`: specs numeradas, tareas y
-bitácora con la evidencia medida. La de la app de Streamlit está en
-`odd/tasks/practica-mnist-streamlit.md`.

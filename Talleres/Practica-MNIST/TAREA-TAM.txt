@@ -1,4 +1,0 @@
- 
-TAREA:
-Crea una interfaz  en donde se pueda cargar un numero escrito a mano(imagen) y a partir del modelo plasmado del cuaderno.ipynb  predizca el  número qué es
-
