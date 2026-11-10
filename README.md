@@ -116,6 +116,21 @@ scripts se ejecutan desde esa carpeta: las figuras y `resultados.json` se escrib
 | --- | --- |
 | `Solución_Parcial-1_TAM_2026.pdf` | Parcial 1 resuelto, en PDF |
 | `Parcial_1_TAM_2026_2_Pearson_RKHS.pdf` | Material del parcial 1 sobre el coeficiente de Pearson y RKHS, en PDF |
+| `solucion_parcial_1.ipynb` | Cuaderno ejecutado de punta a punta: punto 1.5 (MCO, ridge, MV y MAP con N = 300, P = 5, Q = 20) y punto 2.4 (estimador empírico de MMD² con kernel gaussiano, aplicado solo a MNIST: primeros 500 datos contra segundos 500), con gráficas de las comparaciones |
+
+El cuaderno usa TensorFlow solo para cargar MNIST, NumPy para las cuentas y
+matplotlib para las seis figuras; no usa scikit-learn. Hay que ejecutarlo con el
+entorno que tenga TensorFlow (`.venv312/`, Python 3.12) y con
+`Parciales/Parcial-1/` como directorio de trabajo:
+
+```bash
+cd Parciales/Parcial-1
+jupyter lab solucion_parcial_1.ipynb      # o abrirlo en VS Code y elegir el kernel
+```
+
+La primera ejecución descarga MNIST en la caché de Keras (`~/.keras/datasets/`);
+después corre sin red. Un aviso de CUDA en la primera celda es normal: TensorFlow
+trabaja en CPU.
 
 ---
 
