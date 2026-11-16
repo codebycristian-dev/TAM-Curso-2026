@@ -36,10 +36,9 @@ def _save_comparison_networks(directory):
     save_network(NOMBRE_CONVOLUCIONAL, build_conv_network(), {"test_accuracy": 0.5}, directory)
 
 
-def _upload_photo_everywhere(app):
-    """Carga la misma foto en la entrada y en las tres vistas."""
-    for uploader in app.file_uploader:
-        uploader.set_value(("2.jpeg", PHOTO.read_bytes(), "image/jpeg"))
+def _upload_photo(app):
+    """Carga la foto en la única entrada de la página."""
+    app.file_uploader[0].set_value(("2.jpeg", PHOTO.read_bytes(), "image/jpeg"))
     return app.run()
 
 
@@ -93,19 +92,20 @@ def test_comparison_views_without_artifacts_explain_how_to_train_them(model_dire
     assert app.error, "las vistas nuevas tienen que avisar que faltan las redes"
 
 
-def test_uploaded_photo_is_predicted_by_both_networks(model_directory):
-    """Con una foto subida, las dos redes predicen y la comparación muestra ambas."""
+def test_one_upload_feeds_the_predictions_and_every_view(model_directory):
+    """Una sola carga alcanza: la pestaña de subir y las tres vistas usan esa foto."""
     save_artifact(build_model(), {"test_accuracy": 0.9, "test_loss": 0.2}, model_directory)
     _save_comparison_networks(model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
-    assert len(app.file_uploader) == 4, "la entrada y las tres vistas piden su foto"
+    assert len(app.file_uploader) == 1, "la página se carga una sola vez"
 
-    app = _upload_photo_everywhere(app)
+    app = _upload_photo(app)
 
     assert not app.exception
     labels = [metric.label for metric in app.metric]
-    assert "Red densa 64-64" in labels
+    assert "Dígito predicho" in labels, "la pestaña de subir predice esa foto"
+    assert "Red densa 64-64" in labels, "la vista densa predice esa misma foto"
     assert "Red convolucional" in labels
 
     for metric in app.metric:
@@ -120,7 +120,7 @@ def test_convolutional_view_shows_filters_and_activation_maps(model_directory):
     _save_comparison_networks(model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
-    app = _upload_photo_everywhere(app)
+    app = _upload_photo(app)
 
     assert not app.exception
     markdown = " ".join(block.value for block in app.markdown)

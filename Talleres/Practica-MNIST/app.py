@@ -8,6 +8,10 @@ Ejecutar desde la carpeta `Practica-MNIST/` con el entorno que tiene TensorFlow:
 
     streamlit run app.py
 
+La foto se sube una sola vez, en una sección de carga por encima de las pestañas: la
+pestaña `Subir imagen` la predice con la red densa 64-16 y las tres vistas de las otras
+redes leen esa misma foto, sin pedir una propia.
+
 La app sólo carga artefactos entrenados: `modelo/mnist_digits.keras` para la red
 densa 64-16 y `modelo/comparacion/` para las dos redes comparadas. Se generan con
 `python entrenar_modelo.py` y `python entrenar_comparacion.py`.
@@ -45,6 +49,7 @@ MENSAJE_SIN_REDES = (
     "Todavía no están entrenadas las dos redes de comparación. Generalas una vez y volvé a "
     "cargar esta página."
 )
+MENSAJE_SIN_FOTO = "Subí una foto del dígito para ver la predicción y sus activaciones."
 IMAGE_TYPES = ["png", "jpg", "jpeg", "bmp", "webp", "gif"]
 
 
@@ -61,6 +66,16 @@ def load_trained_model(directory: str):
 def load_comparison_networks(directory: str):
     """Carga los dos artefactos de comparación una sola vez por sesión."""
     return load_networks(Path(directory))
+
+
+@st.cache_data(show_spinner=False)
+def preprocess_photo(name: str, payload: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """Preprocesa una foto una sola vez por nombre y contenido.
+
+    La clave es el nombre y los bytes: la misma imagen se prepara una vez por corrida y la
+    comparten la pestaña de subir y las tres vistas.
+    """
+    return preprocess_bytes(payload)
 
 
 def render_probabilities(prediction: Prediction) -> None:
@@ -94,19 +109,12 @@ def render_prediction(preview, prediction: Prediction, caption: str) -> None:
         render_probabilities(prediction)
 
 
-def render_upload_tab(model) -> None:
-    """Pestaña 1: subir una o varias imágenes PNG o JPG."""
+def render_upload_tab(model, uploaded_files: list) -> None:
+    """Pestaña 1: predice con la red densa 64-16 cada una de las imágenes subidas."""
     st.subheader("Subí una imagen de un dígito escrito a mano")
     st.write(
         "Sirve una foto o un recorte del dígito: la app lo pasa a escala de grises, invierte el "
         "fondo si hace falta, recorta el trazo y lo centra en 28 × 28 píxeles, igual que el cuaderno."
-    )
-
-    uploaded_files = st.file_uploader(
-        "Imágenes del dígito",
-        type=IMAGE_TYPES,
-        accept_multiple_files=True,
-        help="Podés subir varias imágenes a la vez; cada una se predice por separado.",
     )
 
     if not uploaded_files:
@@ -117,7 +125,7 @@ def render_upload_tab(model) -> None:
         st.divider()
         st.markdown(f"**Archivo:** `{uploaded_file.name}`")
         try:
-            vector, preview = preprocess_bytes(uploaded_file.getvalue())
+            vector, preview = preprocess_photo(uploaded_file.name, uploaded_file.getvalue())
         except ValueError as error:
             st.error(str(error))
             continue
@@ -134,25 +142,39 @@ class NetworkInput:
     caption: str
 
 
-def render_network_input(prefix: str) -> NetworkInput | None:
-    """Pide la foto que van a leer las vistas, siempre la misma para las dos redes."""
-    uploaded = st.file_uploader(
-        "Foto del dígito",
+def render_shared_input() -> tuple[list, NetworkInput | None]:
+    """Única carga de la página: devuelve los archivos subidos y la foto que leen las vistas.
+
+    Va por encima de las pestañas para que su valor esté disponible en todas en la misma
+    corrida. Con varias imágenes se elige una sola vez cuál analizan las tres vistas.
+    """
+    uploaded_files = st.file_uploader(
+        "Imágenes del dígito",
         type=IMAGE_TYPES,
-        key=f"{prefix}_file",
-        help="Una imagen por vez, para que las dos redes lean exactamente el mismo dígito.",
+        accept_multiple_files=True,
+        help="Podés subir varias imágenes; las vistas analizan la que elijas acá.",
     )
-    if uploaded is None:
-        st.info("Subí una foto del dígito para ver la predicción y sus activaciones.")
-        return None
+    if not uploaded_files:
+        st.info(MENSAJE_SIN_FOTO)
+        return [], None
+
+    names = [uploaded_file.name for uploaded_file in uploaded_files]
+    chosen = uploaded_files[0]
+    if len(names) > 1:
+        chosen_name = st.selectbox(
+            "Foto que analizan las tres vistas",
+            names,
+            help="La pestaña de subir predice todas; las vistas analizan sólo esta.",
+        )
+        chosen = uploaded_files[names.index(chosen_name)]
 
     try:
-        pixels, preview = preprocess_bytes(uploaded.getvalue())
+        pixels, preview = preprocess_photo(chosen.name, chosen.getvalue())
     except ValueError as error:
         st.error(str(error))
-        return None
+        return uploaded_files, None
 
-    return NetworkInput(pixels=pixels, preview=preview, caption=uploaded.name)
+    return uploaded_files, NetworkInput(pixels=pixels, preview=preview, caption=chosen.name)
 
 
 def predict_with(name: str, model, pixels: np.ndarray) -> Prediction:
@@ -218,8 +240,11 @@ def render_anatomy(name: str, model, data: NetworkInput | None) -> None:
     render_matrix_grid(activation_maps(model, data.pixels), columns=8, cell=0.7)
 
 
-def render_network_view(name: str, artifact) -> None:
-    """Vista de una red: la predicción arriba y la anatomía abajo."""
+def render_network_view(name: str, artifact, data: NetworkInput | None) -> None:
+    """Vista de una red: la predicción arriba y la anatomía abajo.
+
+    La foto llega ya preprocesada desde la carga compartida: la vista no pide ninguna.
+    """
     st.subheader(REDES[name].titulo)
 
     if artifact is None:
@@ -230,7 +255,6 @@ def render_network_view(name: str, artifact) -> None:
     model, metrics = artifact
     st.caption(describe_metrics(metrics))
 
-    data = render_network_input(name)
     if data is not None:
         prediction = predict_with(name, model, data.pixels)
         render_prediction(data.preview, prediction, data.caption)
@@ -239,8 +263,11 @@ def render_network_view(name: str, artifact) -> None:
     render_anatomy(name, model, data)
 
 
-def render_comparison_tab(artifacts: dict) -> None:
-    """Vista de comparación: las dos predicciones sobre la misma entrada y el contraste."""
+def render_comparison_tab(artifacts: dict, data: NetworkInput | None) -> None:
+    """Vista de comparación: las dos predicciones sobre la misma entrada y el contraste.
+
+    La entrada llega ya preprocesada desde la carga compartida de la página.
+    """
     st.subheader("Las dos redes sobre la misma entrada")
     st.write(
         "La imagen se prepara una sola vez. La densa recibe 784 píxeles sueltos; la "
@@ -252,7 +279,6 @@ def render_comparison_tab(artifacts: dict) -> None:
         st.code(COMANDO_COMPARACION, language="bash")
         return
 
-    data = render_network_input("comparacion")
     if data is not None:
         predictions = {
             name: predict_with(name, artifacts[name][0], data.pixels) for name in artifacts
@@ -357,17 +383,19 @@ def main() -> None:
     render_sidebar(model, metrics)
     comparison_networks = load_comparison_networks(str(model_directory()))
 
+    uploaded_files, data = render_shared_input()
+
     upload_tab, dense_tab, conv_tab, comparison_tab = st.tabs(
         ["📤 Subir imagen", "🔵 Red densa", "🟣 Red convolucional", "⚖️ Comparación"]
     )
     with upload_tab:
-        render_upload_tab(model)
+        render_upload_tab(model, uploaded_files)
     with dense_tab:
-        render_network_view(NOMBRE_DENSA, comparison_networks[NOMBRE_DENSA])
+        render_network_view(NOMBRE_DENSA, comparison_networks[NOMBRE_DENSA], data)
     with conv_tab:
-        render_network_view(NOMBRE_CONVOLUCIONAL, comparison_networks[NOMBRE_CONVOLUCIONAL])
+        render_network_view(NOMBRE_CONVOLUCIONAL, comparison_networks[NOMBRE_CONVOLUCIONAL], data)
     with comparison_tab:
-        render_comparison_tab(comparison_networks)
+        render_comparison_tab(comparison_networks, data)
 
 
 main()
