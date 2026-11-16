@@ -28,22 +28,43 @@ TAM-Curso-2026/
 | Archivo | Qué es |
 | --- | --- |
 | `CodeTAM.ipynb` | Cuaderno: prepara MNIST, entrena la red densa, la evalúa y permite probar una imagen propia (en Colab y en VS Code) |
-| `app.py` | App de Streamlit: subir una foto, dibujar un dígito con el mouse o elegir una muestra del test set, y ver la predicción |
+| `app.py` | App de Streamlit: subir una foto, dibujar un dígito con el mouse o elegir una muestra del test set, y ver la predicción. Además muestra las dos redes del cuaderno de clase, cada una con su anatomía, y las compara |
 | `entrenar_modelo.py` | Entrena la red del cuaderno y guarda el artefacto `modelo/mnist_digits.keras` que consume la app |
-| `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`) y modelo (`modelo.py`) |
-| `tests/` | 25 tests de preprocesamiento, modelo y app, sin navegador |
+| `entrenar_comparacion.py` | Entrena la densa 64-64 y la convolucional del cuaderno de clase y guarda sus artefactos en `modelo/comparacion/` |
+| `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`), modelo del cuaderno (`modelo.py`) y las dos redes comparadas (`comparacion.py`) |
+| `tests/` | 41 tests de preprocesamiento, modelo, comparación y app, sin navegador |
 | `muestras-reales/` | Seis fotos de dígitos hechos a mano con lapicera, para probar la app con fotos reales |
 | `experimentos/` | Cuadernos de clase: red densa, convolucional simple y convolucional con pooling |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
-**La app.** Tres entradas contra el mismo modelo entrenado:
+**La app.** Las tres primeras pestañas son tres entradas contra el mismo modelo entrenado
+(la densa 64-16 del cuaderno `CodeTAM.ipynb`):
 
 | Pestaña | Entrada |
 | --- | --- |
 | `Subir imagen` | Una o varias fotos o recortes PNG/JPG del dígito hecho a mano |
 | `Dibujar` | Un trazo hecho con el mouse en un lienzo |
 | `Muestra del test set` | Una imagen de prueba de MNIST que el modelo no entrenó, con la etiqueta real al lado |
+
+**Las tres pestañas de comparación.** El cuaderno de clase compara una red densa con una
+convolucional; la app muestra esas dos redes por separado y juntas, cada una con su
+predicción arriba y su anatomía abajo:
+
+| Pestaña | Qué muestra |
+| --- | --- |
+| `Red densa` | La densa 64-64 (55.050 parámetros): la predicción sobre la entrada elegida y su tabla de capas |
+| `Red convolucional` | La de la celda 7 del cuaderno (50.186 parámetros): predicción, tabla de capas, los 32 filtros 3 × 3 de `Convolucion_1` y los 64 mapas de activación de `Convolucion_2` para ese dígito |
+| `Comparación` | Las dos predicciones sobre la misma entrada, si coinciden, cuál acierta la etiqueta real, y el contraste de parámetros y exactitud en prueba |
+
+Cada vista elige su entrada entre una muestra del test set y una foto subida. Las dos redes
+se entrenan con un script aparte y sus artefactos quedan en `modelo/comparacion/`, sin
+tocar el artefacto de la red densa 64-16:
+
+```bash
+python entrenar_comparacion.py                 # las dos redes, 5 épocas
+python entrenar_comparacion.py --redes densa   # sólo una de las dos
+```
 
 `muestras-reales/` guarda seis fotos de dígitos hechos a mano con lapicera sobre
 papel y tomadas con el celular: `1`, `2`, `3`, `5`, `8` y `9`, con el dígito
@@ -57,12 +78,14 @@ convolucional de dos capas) y `scratchpad_3.ipynb` (la convolucional con
 `MaxPooling`, nombres en las capas y la visualización de los filtros y de las
 activaciones). Se ejecutan con el mismo entorno que `CodeTAM.ipynb`.
 
-El modelo se entrena una sola vez y queda en disco; la app sólo lo carga:
+El modelo se entrena una sola vez y queda en disco; la app sólo lo carga. Lo mismo vale
+para las dos redes de comparación:
 
 ```bash
 cd Talleres/Practica-MNIST
 source ../../.venv312/bin/activate      # o el entorno con TensorFlow 2.21
 python entrenar_modelo.py               # ~12 s: genera modelo/mnist_digits.keras
+python entrenar_comparacion.py          # ~1,5 min: genera modelo/comparacion/
 streamlit run app.py                    # abre la app en el navegador
 ```
 
