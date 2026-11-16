@@ -1,7 +1,7 @@
 """Tests de la app de Streamlit, ejecutados sin navegador con `AppTest`.
 
-Comprueban el comportamiento visible: qué pasa cuando falta el artefacto y qué
-muestra la app cuando el modelo ya está cargado.
+Comprueban el comportamiento visible: qué pasa cuando falta el artefacto, qué muestran las
+cuatro pestañas cuando el modelo ya está cargado y qué predice cada red sobre una foto.
 """
 
 from pathlib import Path
@@ -19,6 +19,7 @@ from tam_mnist.comparacion import (
 from tam_mnist.modelo import build_model, save_artifact
 
 APP_FILE = str(Path(__file__).resolve().parent.parent / "app.py")
+PHOTO = Path(__file__).resolve().parent.parent / "muestras-reales" / "2.jpeg"
 TIMEOUT = 180
 
 
@@ -27,6 +28,19 @@ def model_directory(tmp_path, monkeypatch):
     """Aísla el artefacto de cada test en un directorio temporal."""
     monkeypatch.setenv("TAM_MNIST_MODEL_DIR", str(tmp_path))
     return tmp_path
+
+
+def _save_comparison_networks(directory):
+    """Guarda las dos redes sin entrenar: alcanza para que las vistas se dibujen."""
+    save_network(NOMBRE_DENSA, build_dense_network(), {"test_accuracy": 0.5}, directory)
+    save_network(NOMBRE_CONVOLUCIONAL, build_conv_network(), {"test_accuracy": 0.5}, directory)
+
+
+def _upload_photo_everywhere(app):
+    """Carga la misma foto en la entrada y en las tres vistas."""
+    for uploader in app.file_uploader:
+        uploader.set_value(("2.jpeg", PHOTO.read_bytes(), "image/jpeg"))
+    return app.run()
 
 
 def test_app_without_artifact_asks_to_train_the_model(model_directory):
@@ -38,56 +52,34 @@ def test_app_without_artifact_asks_to_train_the_model(model_directory):
     assert app.error, "la app tiene que avisar que falta el modelo"
 
 
-def test_app_with_artifact_shows_the_six_tabs_and_the_metrics(model_directory):
-    """Con artefacto la app muestra las tres entradas, las dos redes y la comparación."""
+def test_app_with_artifact_shows_the_four_tabs_and_the_metrics(model_directory):
+    """La app queda con la entrada por foto y las tres vistas de las redes."""
     save_artifact(build_model(), {"test_accuracy": 0.97, "test_loss": 0.1, "epochs": 5}, model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
 
     assert not app.exception
-    assert len(app.tabs) == 6, "tres entradas, red densa, red convolucional y comparación"
     assert [tab.label for tab in app.tabs] == [
         "📤 Subir imagen",
-        "✏️ Dibujar",
-        "🎲 Muestra del test set",
         "🔵 Red densa",
         "🟣 Red convolucional",
         "⚖️ Comparación",
     ]
     metric_labels = [metric.label for metric in app.metric]
     assert "Exactitud en prueba" in metric_labels
-    assert "Dígito predicho" in metric_labels
-
-    # El modelo recién construido no está entrenado: la app predice igual y muestra
-    # la etiqueta real del test set para comparar, sin inventar aciertos.
     assert app.dataframe, "la tabla de arquitectura del cuaderno"
 
 
-def test_app_prediction_on_a_test_sample_is_a_valid_digit(model_directory):
-    """Sobre una imagen del test set la app responde un dígito y su confianza."""
-    save_artifact(build_model(), {"test_accuracy": 0.5, "test_loss": 2.0, "epochs": 1}, model_directory)
+def test_app_asks_for_a_photo_before_predicting(model_directory):
+    """Sin foto la app no inventa una predicción: la pide en cada vista."""
+    save_artifact(build_model(), {"test_accuracy": 0.9, "test_loss": 0.2}, model_directory)
+    _save_comparison_networks(model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
 
     assert not app.exception
-    prediction_metrics = [metric for metric in app.metric if metric.label == "Dígito predicho"]
-    assert prediction_metrics, "la pestaña del test set predice una muestra al abrir"
-
-    value = int(float(prediction_metrics[0].value))
-    assert 0 <= value <= 9
-    assert "%" in prediction_metrics[0].delta, "la confianza se muestra como porcentaje"
-
-    chart = app.get("vega_lite_chart")
-    assert chart, "el ranking de las diez probabilidades se muestra como gráfico"
-
-
-# --- Las tres vistas nuevas (cuaderno scratchpad_3) -----------------------------
-
-
-def _save_comparison_networks(directory):
-    """Guarda las dos redes sin entrenar: alcanza para que las vistas se dibujen."""
-    save_network(NOMBRE_DENSA, build_dense_network(), {"test_accuracy": 0.5}, directory)
-    save_network(NOMBRE_CONVOLUCIONAL, build_conv_network(), {"test_accuracy": 0.5}, directory)
+    assert "Dígito predicho" not in [metric.label for metric in app.metric]
+    assert any("Subí una foto" in info.value for info in app.info)
 
 
 def test_comparison_views_without_artifacts_explain_how_to_train_them(model_directory):
@@ -101,32 +93,34 @@ def test_comparison_views_without_artifacts_explain_how_to_train_them(model_dire
     assert app.error, "las vistas nuevas tienen que avisar que faltan las redes"
 
 
-def test_comparison_tab_predicts_with_both_networks(model_directory):
-    """La comparación muestra una predicción por red sobre la misma muestra del test set."""
-    save_artifact(build_model(), {"test_accuracy": 0.97, "test_loss": 0.1}, model_directory)
+def test_uploaded_photo_is_predicted_by_both_networks(model_directory):
+    """Con una foto subida, las dos redes predicen y la comparación muestra ambas."""
+    save_artifact(build_model(), {"test_accuracy": 0.9, "test_loss": 0.2}, model_directory)
     _save_comparison_networks(model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
+    assert len(app.file_uploader) == 4, "la entrada y las tres vistas piden su foto"
+
+    app = _upload_photo_everywhere(app)
 
     assert not app.exception
     labels = [metric.label for metric in app.metric]
     assert "Red densa 64-64" in labels
     assert "Red convolucional" in labels
 
-    predictions = [
-        metric for metric in app.metric if metric.label in ("Red densa 64-64", "Red convolucional")
-    ]
-    for metric in predictions:
-        assert 0 <= int(float(metric.value)) <= 9
-        assert "%" in metric.delta
+    for metric in app.metric:
+        if metric.label in ("Red densa 64-64", "Red convolucional"):
+            assert 0 <= int(float(metric.value)) <= 9, "la predicción es un dígito"
+            assert "%" in metric.delta, "la confianza se muestra como porcentaje"
 
 
 def test_convolutional_view_shows_filters_and_activation_maps(model_directory):
     """La vista convolucional suma sus filtros aprendidos y los mapas de activación."""
-    save_artifact(build_model(), {"test_accuracy": 0.97, "test_loss": 0.1}, model_directory)
+    save_artifact(build_model(), {"test_accuracy": 0.9, "test_loss": 0.2}, model_directory)
     _save_comparison_networks(model_directory)
 
     app = AppTest.from_file(APP_FILE, default_timeout=TIMEOUT).run()
+    app = _upload_photo_everywhere(app)
 
     assert not app.exception
     markdown = " ".join(block.value for block in app.markdown)
@@ -134,6 +128,6 @@ def test_convolutional_view_shows_filters_and_activation_maps(model_directory):
     assert "Mapas de activación" in markdown
 
     # Las dos redes tienen su tabla de capas: la densa 64-64 y la convolucional de siete.
-    tables = [frame.value for frame in app.dataframe]
-    assert any("Convolucion_1" in str(frame) for frame in tables)
-    assert any("densa_1" in str(frame) for frame in tables)
+    tables = [str(frame.value) for frame in app.dataframe]
+    assert any("Convolucion_1" in table for table in tables)
+    assert any("densa_1" in table for table in tables)

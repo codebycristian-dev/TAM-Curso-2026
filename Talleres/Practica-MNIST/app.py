@@ -1,4 +1,4 @@
-"""App de Streamlit de la práctica MNIST: subir, dibujar o elegir un dígito.
+"""App de Streamlit de la práctica MNIST: subir una foto de un dígito.
 
 Además de la red densa 64-16 del cuaderno `CodeTAM.ipynb`, la app muestra las dos redes
 del cuaderno de clase `experimentos/scratchpad_3.ipynb`: la densa 64-64 y la
@@ -33,16 +33,9 @@ from tam_mnist.comparacion import (
     load_networks,
 )
 from tam_mnist.modelo import analyze_layer_structure, load_artifact, model_directory
-from tam_mnist.preproceso import (
-    MENSAJE_SIN_DIGITO,
-    Prediction,
-    predict_probabilities,
-    preprocess_bytes,
-    preprocess_canvas,
-)
+from tam_mnist.preproceso import Prediction, predict_probabilities, preprocess_bytes
 
 PAGE_TITLE = "Práctica MNIST — TAM 2026"
-CANVAS_PIXELS = 280
 MENSAJE_SIN_MODELO = (
     "Todavía no hay un modelo entrenado. Generá el artefacto una vez y volvé a cargar esta página."
 )
@@ -62,15 +55,6 @@ st.set_page_config(page_title=PAGE_TITLE, page_icon="🔢", layout="wide")
 def load_trained_model(directory: str):
     """Carga el artefacto una sola vez por sesión."""
     return load_artifact(Path(directory))
-
-
-@st.cache_data(show_spinner="Cargando el conjunto de prueba de MNIST…")
-def load_test_set():
-    """Trae las 10 000 imágenes de prueba ya normalizadas, desde el caché local."""
-    from tam_mnist.modelo import load_dataset
-
-    _, (x_test, y_test) = load_dataset()
-    return x_test, y_test
 
 
 @st.cache_resource(show_spinner="Cargando las dos redes de comparación…")
@@ -141,155 +125,34 @@ def render_upload_tab(model) -> None:
         render_prediction(preview, predict_probabilities(model, vector), uploaded_file.name)
 
 
-def render_canvas_tab(model) -> None:
-    """Pestaña 2: dibujar el dígito con el mouse."""
-    try:
-        from streamlit_drawable_canvas import st_canvas
-    except ImportError:
-        st.warning(
-            "Falta el componente de dibujo. Instalalo con "
-            "`python -m pip install streamlit-drawable-canvas` o usá las otras pestañas."
-        )
-        return
-
-    st.subheader("Dibujá un dígito con el mouse")
-    st.write("Trazá el número en el lienzo negro. La predicción se actualiza al soltar el trazo.")
-
-    if "canvas_generation" not in st.session_state:
-        st.session_state.canvas_generation = 0
-
-    canvas_column, result_column = st.columns([1, 2], gap="large")
-    with canvas_column:
-        canvas = st_canvas(
-            stroke_width=18,
-            stroke_color="#FFFFFF",
-            background_color="rgba(0, 0, 0, 0)",
-            height=CANVAS_PIXELS,
-            width=CANVAS_PIXELS,
-            drawing_mode="freedraw",
-            update_streamlit=True,
-            return_image_data=True,
-            key=f"digit_canvas_{st.session_state.canvas_generation}",
-        )
-        if st.button("Limpiar lienzo", width="stretch"):
-            st.session_state.canvas_generation += 1
-            st.rerun()
-
-    with result_column:
-        if canvas is None or canvas.image_data is None:
-            st.info("Dibujá un dígito para ver la predicción.")
-            return
-
-        try:
-            vector, preview = preprocess_canvas(canvas.image_data)
-        except ValueError as error:
-            message = str(error)
-            if message == MENSAJE_SIN_DIGITO:
-                st.info("El lienzo está vacío: dibujá un dígito.")
-            else:
-                st.error(message)
-            return
-
-        render_prediction(preview, predict_probabilities(model, vector), "Tu dibujo, normalizado")
-
-
-def render_test_set_tab(model) -> None:
-    """Pestaña 3: probar con una imagen del conjunto de prueba, que el modelo no entrenó."""
-    st.subheader("Probá con una imagen del conjunto de prueba")
-    st.write(
-        "Estas imágenes no participaron del entrenamiento. Comparar la etiqueta real con la "
-        "predicción es la forma más honesta de ver cómo anda el modelo."
-    )
-
-    x_test, y_test = load_test_set()
-
-    control_column, random_column = st.columns([3, 1])
-    with control_column:
-        index = st.slider(
-            "Índice de la imagen de prueba",
-            min_value=0,
-            max_value=int(x_test.shape[0]) - 1,
-            value=0,
-            step=1,
-        )
-    with random_column:
-        st.write("")
-        st.write("")
-        if st.button("Elegir al azar", width="stretch"):
-            st.session_state.test_index = int(pd.Series(range(int(x_test.shape[0]))).sample(1).iloc[0])
-            st.rerun()
-
-    if "test_index" in st.session_state:
-        index = st.session_state.test_index
-
-    preview = x_test[index].reshape(28, 28)
-    actual_digit = int(y_test[index])
-    prediction = predict_probabilities(model, x_test[index : index + 1])
-
-    render_prediction(preview, prediction, f"Etiqueta real: {actual_digit} (índice {index})")
-    if prediction.digit == actual_digit:
-        st.success(f"Correcto: el modelo acertó el {prediction.confidence:.1%} con la etiqueta real.")
-    else:
-        st.error(
-            f"Error: la etiqueta real es {actual_digit} y el modelo respondió {prediction.digit} "
-            f"con {prediction.confidence:.1%} de confianza."
-        )
-
-
 @dataclass(frozen=True)
 class NetworkInput:
-    """La entrada elegida para una vista: los píxeles, la vista previa y la etiqueta real."""
+    """La foto ya preprocesada: los píxeles que recibe la red y la vista de 28 × 28."""
 
     pixels: np.ndarray
     preview: np.ndarray
     caption: str
-    actual_digit: int | None
 
 
 def render_network_input(prefix: str) -> NetworkInput | None:
-    """Selector de entrada compartido por las tres vistas de comparación."""
-    source = st.radio(
-        "Entrada",
-        ["Muestra del test set", "Subir una foto"],
-        key=f"{prefix}_source",
-        horizontal=True,
+    """Pide la foto que van a leer las vistas, siempre la misma para las dos redes."""
+    uploaded = st.file_uploader(
+        "Foto del dígito",
+        type=IMAGE_TYPES,
+        key=f"{prefix}_file",
+        help="Una imagen por vez, para que las dos redes lean exactamente el mismo dígito.",
     )
+    if uploaded is None:
+        st.info("Subí una foto del dígito para ver la predicción y sus activaciones.")
+        return None
 
-    if source == "Subir una foto":
-        uploaded = st.file_uploader(
-            "Imagen del dígito",
-            type=IMAGE_TYPES,
-            key=f"{prefix}_file",
-            help="Una imagen por vez en estas vistas, para comparar las redes sobre el mismo dígito.",
-        )
-        if uploaded is None:
-            st.info("Subí una foto del dígito para ver la predicción y sus activaciones.")
-            return None
-        try:
-            pixels, preview = preprocess_bytes(uploaded.getvalue())
-        except ValueError as error:
-            st.error(str(error))
-            return None
-        return NetworkInput(
-            pixels=pixels, preview=preview, caption=uploaded.name, actual_digit=None
-        )
+    try:
+        pixels, preview = preprocess_bytes(uploaded.getvalue())
+    except ValueError as error:
+        st.error(str(error))
+        return None
 
-    x_test, y_test = load_test_set()
-    index = st.slider(
-        "Índice de la imagen de prueba",
-        min_value=0,
-        max_value=int(x_test.shape[0]) - 1,
-        value=0,
-        step=1,
-        key=f"{prefix}_index",
-    )
-    actual_digit = int(y_test[index])
-    return NetworkInput(
-        pixels=x_test[index : index + 1],
-        preview=x_test[index].reshape(28, 28),
-        caption=f"Etiqueta real: {actual_digit} (índice {index})",
-        actual_digit=actual_digit,
-    )
+    return NetworkInput(pixels=pixels, preview=preview, caption=uploaded.name)
 
 
 def predict_with(name: str, model, pixels: np.ndarray) -> Prediction:
@@ -355,16 +218,6 @@ def render_anatomy(name: str, model, data: NetworkInput | None) -> None:
     render_matrix_grid(activation_maps(model, data.pixels), columns=8, cell=0.7)
 
 
-def render_verdict(prediction: Prediction, actual_digit: int | None) -> None:
-    """Dice si la predicción coincide con la etiqueta real, cuando la hay."""
-    if actual_digit is None:
-        return
-    if prediction.digit == actual_digit:
-        st.success(f"Acertó: la etiqueta real es {actual_digit}.")
-    else:
-        st.error(f"Falló: la etiqueta real es {actual_digit} y respondió {prediction.digit}.")
-
-
 def render_network_view(name: str, artifact) -> None:
     """Vista de una red: la predicción arriba y la anatomía abajo."""
     st.subheader(REDES[name].titulo)
@@ -381,7 +234,6 @@ def render_network_view(name: str, artifact) -> None:
     if data is not None:
         prediction = predict_with(name, model, data.pixels)
         render_prediction(data.preview, prediction, data.caption)
-        render_verdict(prediction, data.actual_digit)
 
     st.divider()
     render_anatomy(name, model, data)
@@ -428,19 +280,6 @@ def render_comparison_tab(artifacts: dict) -> None:
                 f"Las dos redes no coinciden: la densa dice {dense.digit} y la convolucional "
                 f"{conv.digit}."
             )
-
-        if data.actual_digit is not None:
-            hits = [
-                REDES[name].titulo
-                for name, prediction in predictions.items()
-                if prediction.digit == data.actual_digit
-            ]
-            if len(hits) == len(predictions):
-                st.caption("Las dos aciertan la etiqueta real.")
-            elif hits:
-                st.caption(f"Sólo acierta {hits[0].lower()}.")
-            else:
-                st.caption("Ninguna de las dos acierta la etiqueta real.")
 
     st.divider()
     st.markdown("**Arquitectura y resultados**")
@@ -502,10 +341,9 @@ def render_sidebar(model, metrics: dict) -> None:
 def main() -> None:
     st.title("🔢 Práctica MNIST: dígitos escritos a mano")
     st.write(
-        "La red densa del cuaderno `CodeTAM.ipynb` predice qué dígito escribiste. "
-        "Los tres caminos de abajo terminan en la misma predicción. Las otras tres pestañas "
-        "muestran las redes del cuaderno de clase `experimentos/scratchpad_3.ipynb`: la densa, "
-        "la convolucional y la comparación de las dos."
+        "La red densa del cuaderno `CodeTAM.ipynb` predice el dígito de la foto que subas. "
+        "Las otras tres pestañas muestran las redes del cuaderno de clase "
+        "`experimentos/scratchpad_3.ipynb`: la densa, la convolucional y la comparación de las dos."
     )
 
     artifact = load_trained_model(str(model_directory()))
@@ -519,22 +357,11 @@ def main() -> None:
     render_sidebar(model, metrics)
     comparison_networks = load_comparison_networks(str(model_directory()))
 
-    upload_tab, canvas_tab, test_set_tab, dense_tab, conv_tab, comparison_tab = st.tabs(
-        [
-            "📤 Subir imagen",
-            "✏️ Dibujar",
-            "🎲 Muestra del test set",
-            "🔵 Red densa",
-            "🟣 Red convolucional",
-            "⚖️ Comparación",
-        ]
+    upload_tab, dense_tab, conv_tab, comparison_tab = st.tabs(
+        ["📤 Subir imagen", "🔵 Red densa", "🟣 Red convolucional", "⚖️ Comparación"]
     )
     with upload_tab:
         render_upload_tab(model)
-    with canvas_tab:
-        render_canvas_tab(model)
-    with test_set_tab:
-        render_test_set_tab(model)
     with dense_tab:
         render_network_view(NOMBRE_DENSA, comparison_networks[NOMBRE_DENSA])
     with conv_tab:

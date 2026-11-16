@@ -28,24 +28,19 @@ TAM-Curso-2026/
 | Archivo | Qué es |
 | --- | --- |
 | `CodeTAM.ipynb` | Cuaderno: prepara MNIST, entrena la red densa, la evalúa y permite probar una imagen propia (en Colab y en VS Code) |
-| `app.py` | App de Streamlit: subir una foto, dibujar un dígito con el mouse o elegir una muestra del test set, y ver la predicción. Además muestra las dos redes del cuaderno de clase, cada una con su anatomía, y las compara |
+| `app.py` | App de Streamlit: subir una foto del dígito y ver la predicción. Además muestra las dos redes del cuaderno de clase, cada una con su anatomía, y las compara |
 | `entrenar_modelo.py` | Entrena la red del cuaderno y guarda el artefacto `modelo/mnist_digits.keras` que consume la app |
 | `entrenar_comparacion.py` | Entrena la densa 64-64 y la convolucional del cuaderno de clase y guarda sus artefactos en `modelo/comparacion/` |
 | `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`), modelo del cuaderno (`modelo.py`) y las dos redes comparadas (`comparacion.py`) |
-| `tests/` | 41 tests de preprocesamiento, modelo, comparación y app, sin navegador |
+| `tests/` | 39 tests de preprocesamiento, modelo, comparación y app, sin navegador |
 | `muestras-reales/` | Seis fotos de dígitos hechos a mano con lapicera, para probar la app con fotos reales |
 | `experimentos/` | Cuadernos de clase: red densa, convolucional simple y convolucional con pooling |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
-**La app.** Las tres primeras pestañas son tres entradas contra el mismo modelo entrenado
-(la densa 64-16 del cuaderno `CodeTAM.ipynb`):
-
-| Pestaña | Entrada |
-| --- | --- |
-| `Subir imagen` | Una o varias fotos o recortes PNG/JPG del dígito hecho a mano |
-| `Dibujar` | Un trazo hecho con el mouse en un lienzo |
-| `Muestra del test set` | Una imagen de prueba de MNIST que el modelo no entrenó, con la etiqueta real al lado |
+**La app.** La pestaña `Subir imagen` es la entrada de la red densa 64-16 del cuaderno
+`CodeTAM.ipynb`: una o varias fotos o recortes PNG/JPG del dígito hecho a mano, que la app
+pasa a escala de grises, recorta y centra en 28 × 28 píxeles.
 
 **Las tres pestañas de comparación.** El cuaderno de clase compara una red densa con una
 convolucional; la app muestra esas dos redes por separado y juntas, cada una con su
@@ -57,7 +52,7 @@ predicción arriba y su anatomía abajo:
 | `Red convolucional` | La de la celda 7 del cuaderno (50.186 parámetros): predicción, tabla de capas, los 32 filtros 3 × 3 de `Convolucion_1` y los 64 mapas de activación de `Convolucion_2` para ese dígito |
 | `Comparación` | Las dos predicciones sobre la misma entrada, si coinciden, cuál acierta la etiqueta real, y el contraste de parámetros y exactitud en prueba |
 
-Cada vista elige su entrada entre una muestra del test set y una foto subida. Las dos redes
+Cada vista pide su propia foto del dígito. Las dos redes
 se entrenan con un script aparte y sus artefactos quedan en `modelo/comparacion/`, sin
 tocar el artefacto de la red densa 64-16:
 

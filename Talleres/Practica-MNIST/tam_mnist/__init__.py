@@ -8,7 +8,6 @@ from .preproceso import (
     MENSAJE_SIN_DIGITO,
     Prediction,
     preprocess_bytes,
-    preprocess_canvas,
     preprocess_image,
     predict_probabilities,
 )
@@ -18,6 +17,5 @@ __all__ = [
     "Prediction",
     "predict_probabilities",
     "preprocess_bytes",
-    "preprocess_canvas",
     "preprocess_image",
 ]

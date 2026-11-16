@@ -44,7 +44,6 @@ MIN_BLOB_FRACTION = 0.0008
 
 MENSAJE_SIN_DIGITO = "No se encontró un dígito visible en la imagen."
 MENSAJE_ARCHIVO_INVALIDO = "No se pudo leer el archivo: no parece ser una imagen PNG o JPG válida."
-MENSAJE_LIENZO_INVALIDO = "El lienzo de dibujo no entregó una imagen con canal alfa."
 
 
 @dataclass(frozen=True)
@@ -341,26 +340,6 @@ def preprocess_bytes(data: bytes) -> tuple[np.ndarray, np.ndarray]:
         if isinstance(error, ValueError) and str(error) == MENSAJE_SIN_DIGITO:
             raise
         raise ValueError(MENSAJE_ARCHIVO_INVALIDO) from error
-
-
-def preprocess_canvas(image_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Preprocesa la matriz RGBA que devuelve el lienzo de dibujo.
-
-    El componente dibuja con trazo opaco sobre fondo transparente, así que el canal
-    alfa ya es exactamente el trazo: no hace falta estimar fondo ni polaridad.
-    """
-    array = np.asarray(image_data)
-    if array.ndim != 3 or array.shape[2] not in (3, 4):
-        raise ValueError(MENSAJE_LIENZO_INVALIDO)
-
-    if array.shape[2] == 4:
-        alpha = np.asarray(array[:, :, 3], dtype=np.float32)
-    else:
-        alpha = np.asarray(
-            ImageOps.grayscale(Image.fromarray(array[:, :, :3].astype(np.uint8))), dtype=np.float32
-        )
-
-    return build_input(matrix_from_ink(alpha))
 
 
 def predict_probabilities(model, batch: np.ndarray) -> Prediction:

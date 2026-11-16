@@ -1,7 +1,7 @@
 """Tests del preprocesamiento de imágenes para la app de la práctica MNIST.
 
 Cubren las reglas que el cuaderno define en `preprocess_uploaded_digit`
-(celda 13 de CodeTAM.ipynb) y la conversión del lienzo de dibujo.
+(celda 13 de CodeTAM.ipynb).
 """
 
 from io import BytesIO
@@ -13,7 +13,6 @@ from PIL import Image, ImageFilter
 from tam_mnist.preproceso import (
     MENSAJE_SIN_DIGITO,
     preprocess_bytes,
-    preprocess_canvas,
     preprocess_image,
     predict_probabilities,
 )
@@ -123,27 +122,6 @@ def test_bytes_entry_point_rejects_corrupted_data():
         preprocess_bytes(b"esto no es una imagen")
 
     assert "imagen" in str(error.value).lower()
-
-
-def test_canvas_rgba_stroke_is_preprocessed_like_a_photo():
-    """El lienzo entrega RGBA con trazo opaco sobre fondo transparente."""
-    canvas = np.zeros((280, 280, 4), dtype=np.uint8)
-    canvas[100:180, 130:150] = [255, 255, 255, 255]
-
-    vector, preview = preprocess_canvas(canvas)
-
-    assert vector.shape == (1, 784)
-    assert preview.shape == (28, 28)
-    assert float(preview.mean()) < 0.5
-    assert float(preview[14, 14]) > 0.5
-
-
-def test_empty_canvas_is_rejected():
-    """Un lienzo vacío equivale a una imagen sin dígito."""
-    with pytest.raises(ValueError) as error:
-        preprocess_canvas(np.zeros((280, 280, 4), dtype=np.uint8))
-
-    assert str(error.value) == MENSAJE_SIN_DIGITO
 
 
 class StubModel:
