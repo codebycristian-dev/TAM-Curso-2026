@@ -89,6 +89,9 @@ python entrenar_comparacion.py          # ~1,5 min: genera modelo/comparacion/
 streamlit run app.py                    # abre la app en el navegador
 ```
 
+Si `streamlit` responde «orden no encontrada», el entorno no está activado en esa shell: el
+mismo comando con el intérprete del entorno es `../../.venv312/bin/python -m streamlit run app.py`.
+
 `entrenar_modelo.py` acepta `--epochs`, `--batch-size`, `--validation-split`,
 `--seed` y `--directory` (ver `python entrenar_modelo.py --help`). El artefacto
 queda en `modelo/`, ignorado por Git porque se regenera con el script.
