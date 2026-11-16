@@ -33,6 +33,7 @@ TAM-Curso-2026/
 | `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`) y modelo (`modelo.py`) |
 | `tests/` | 25 tests de preprocesamiento, modelo y app, sin navegador |
 | `muestras-reales/` | Seis fotos de dígitos hechos a mano con lapicera, para probar la app con fotos reales |
+| `experimentos/` | Cuadernos de clase: red densa, convolucional simple y convolucional con pooling |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
@@ -49,6 +50,12 @@ papel y tomadas con el celular: `1`, `2`, `3`, `5`, `8` y `9`, con el dígito
 fotografiado como nombre de archivo. Sirven para probar la pestaña `Subir
 imagen` con fotos reales. Los tests no las usan: generan sus propias fotos
 sintéticas.
+
+`experimentos/` reúne los cuadernos de clase, en el orden en que se probaron:
+`scratchpad.ipynb` (red densa de 64-64), `scratchpad_2.ipynb` (la densa y una
+convolucional de dos capas) y `scratchpad_3.ipynb` (la convolucional con
+`MaxPooling`, nombres en las capas y la visualización de los filtros y de las
+activaciones). Se ejecutan con el mismo entorno que `CodeTAM.ipynb`.
 
 El modelo se entrena una sola vez y queda en disco; la app sólo lo carga:
 
