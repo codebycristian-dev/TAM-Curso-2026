@@ -32,6 +32,7 @@ TAM-Curso-2026/
 | `entrenar_modelo.py` | Entrena la red del cuaderno y guarda el artefacto `modelo/mnist_digits.keras` que consume la app |
 | `tam_mnist/` | Núcleo reutilizable: preprocesamiento de imágenes (`preproceso.py`) y modelo (`modelo.py`) |
 | `tests/` | 25 tests de preprocesamiento, modelo y app, sin navegador |
+| `muestras-reales/` | Seis fotos de dígitos hechos a mano con lapicera, para probar la app con fotos reales |
 | `requirements.txt` | Dependencias del cuaderno y de la app |
 | `requirements-dev.txt` | Dependencias para correr los tests |
 
@@ -42,6 +43,12 @@ TAM-Curso-2026/
 | `Subir imagen` | Una o varias fotos o recortes PNG/JPG del dígito hecho a mano |
 | `Dibujar` | Un trazo hecho con el mouse en un lienzo |
 | `Muestra del test set` | Una imagen de prueba de MNIST que el modelo no entrenó, con la etiqueta real al lado |
+
+`muestras-reales/` guarda seis fotos de dígitos hechos a mano con lapicera sobre
+papel y tomadas con el celular: `1`, `2`, `3`, `5`, `8` y `9`, con el dígito
+fotografiado como nombre de archivo. Sirven para probar la pestaña `Subir
+imagen` con fotos reales. Los tests no las usan: generan sus propias fotos
+sintéticas.
 
 El modelo se entrena una sola vez y queda en disco; la app sólo lo carga:
 
