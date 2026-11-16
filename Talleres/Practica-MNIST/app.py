@@ -1,18 +1,37 @@
 """App de Streamlit de la práctica MNIST: subir, dibujar o elegir un dígito.
 
+Además de la red densa 64-16 del cuaderno `CodeTAM.ipynb`, la app muestra las dos redes
+del cuaderno de clase `experimentos/scratchpad_3.ipynb`: la densa 64-64 y la
+convolucional, cada una con su predicción y su anatomía, y una vista que las compara.
+
 Ejecutar desde la carpeta `Practica-MNIST/` con el entorno que tiene TensorFlow:
 
     streamlit run app.py
 
-La app sólo carga el artefacto entrenado (`modelo/mnist_digits.keras`). Para
-generarlo o regenerarlo se ejecuta `python entrenar_modelo.py`.
+La app sólo carga artefactos entrenados: `modelo/mnist_digits.keras` para la red
+densa 64-16 y `modelo/comparacion/` para las dos redes comparadas. Se generan con
+`python entrenar_modelo.py` y `python entrenar_comparacion.py`.
 """
 
+import math
+from dataclasses import dataclass
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
+from tam_mnist.comparacion import (
+    NOMBRE_CONVOLUCIONAL,
+    NOMBRE_DENSA,
+    REDES,
+    activation_maps,
+    adapt_batch,
+    first_conv_filters,
+    layer_table,
+    load_networks,
+)
 from tam_mnist.modelo import analyze_layer_structure, load_artifact, model_directory
 from tam_mnist.preproceso import (
     MENSAJE_SIN_DIGITO,
@@ -28,6 +47,12 @@ MENSAJE_SIN_MODELO = (
     "Todavía no hay un modelo entrenado. Generá el artefacto una vez y volvé a cargar esta página."
 )
 COMANDO_ENTRENAMIENTO = "python entrenar_modelo.py"
+COMANDO_COMPARACION = "python entrenar_comparacion.py"
+MENSAJE_SIN_REDES = (
+    "Todavía no están entrenadas las dos redes de comparación. Generalas una vez y volvé a "
+    "cargar esta página."
+)
+IMAGE_TYPES = ["png", "jpg", "jpeg", "bmp", "webp", "gif"]
 
 
 st.set_page_config(page_title=PAGE_TITLE, page_icon="🔢", layout="wide")
@@ -46,6 +71,12 @@ def load_test_set():
 
     _, (x_test, y_test) = load_dataset()
     return x_test, y_test
+
+
+@st.cache_resource(show_spinner="Cargando las dos redes de comparación…")
+def load_comparison_networks(directory: str):
+    """Carga los dos artefactos de comparación una sola vez por sesión."""
+    return load_networks(Path(directory))
 
 
 def render_probabilities(prediction: Prediction) -> None:
@@ -89,7 +120,7 @@ def render_upload_tab(model) -> None:
 
     uploaded_files = st.file_uploader(
         "Imágenes del dígito",
-        type=["png", "jpg", "jpeg", "bmp", "webp", "gif"],
+        type=IMAGE_TYPES,
         accept_multiple_files=True,
         help="Podés subir varias imágenes a la vez; cada una se predice por separado.",
     )
@@ -205,6 +236,232 @@ def render_test_set_tab(model) -> None:
         )
 
 
+@dataclass(frozen=True)
+class NetworkInput:
+    """La entrada elegida para una vista: los píxeles, la vista previa y la etiqueta real."""
+
+    pixels: np.ndarray
+    preview: np.ndarray
+    caption: str
+    actual_digit: int | None
+
+
+def render_network_input(prefix: str) -> NetworkInput | None:
+    """Selector de entrada compartido por las tres vistas de comparación."""
+    source = st.radio(
+        "Entrada",
+        ["Muestra del test set", "Subir una foto"],
+        key=f"{prefix}_source",
+        horizontal=True,
+    )
+
+    if source == "Subir una foto":
+        uploaded = st.file_uploader(
+            "Imagen del dígito",
+            type=IMAGE_TYPES,
+            key=f"{prefix}_file",
+            help="Una imagen por vez en estas vistas, para comparar las redes sobre el mismo dígito.",
+        )
+        if uploaded is None:
+            st.info("Subí una foto del dígito para ver la predicción y sus activaciones.")
+            return None
+        try:
+            pixels, preview = preprocess_bytes(uploaded.getvalue())
+        except ValueError as error:
+            st.error(str(error))
+            return None
+        return NetworkInput(
+            pixels=pixels, preview=preview, caption=uploaded.name, actual_digit=None
+        )
+
+    x_test, y_test = load_test_set()
+    index = st.slider(
+        "Índice de la imagen de prueba",
+        min_value=0,
+        max_value=int(x_test.shape[0]) - 1,
+        value=0,
+        step=1,
+        key=f"{prefix}_index",
+    )
+    actual_digit = int(y_test[index])
+    return NetworkInput(
+        pixels=x_test[index : index + 1],
+        preview=x_test[index].reshape(28, 28),
+        caption=f"Etiqueta real: {actual_digit} (índice {index})",
+        actual_digit=actual_digit,
+    )
+
+
+def predict_with(name: str, model, pixels: np.ndarray) -> Prediction:
+    """Predice con una de las dos redes, llevando los píxeles a la forma que espera."""
+    return predict_probabilities(model, adapt_batch(name, pixels))
+
+
+def describe_metrics(metrics: dict) -> str:
+    """Una línea con cómo se entrenó la red y cuánto acierta en el conjunto de prueba."""
+    if not metrics:
+        return "Esta red no tiene métricas guardadas."
+    accuracy = metrics.get("test_accuracy")
+    accuracy_text = f"{accuracy:.2%}" if accuracy is not None else "?"
+    return (
+        f"Entrenada con {metrics.get('epochs', '?')} épocas y lotes de "
+        f"{metrics.get('batch_size', '?')}; exactitud en prueba {accuracy_text}."
+    )
+
+
+def render_matrix_grid(matrices: np.ndarray, columns: int, cell: float = 0.9) -> None:
+    """Dibuja una grilla de matrices en escala de grises, sin ejes."""
+    count = len(matrices)
+    rows = math.ceil(count / columns)
+    figure, axes = plt.subplots(rows, columns, figsize=(columns * cell, rows * cell), squeeze=False)
+
+    for axis, matrix in zip(axes.ravel(), matrices):
+        axis.imshow(matrix, cmap="gray", interpolation="nearest")
+        axis.axis("off")
+    for axis in axes.ravel()[count:]:
+        axis.axis("off")
+
+    figure.tight_layout(pad=0.15)
+    st.pyplot(figure)
+    plt.close(figure)
+
+
+def render_anatomy(name: str, model, data: NetworkInput | None) -> None:
+    """Anatomía de la red: capas y parámetros; en la convolucional, filtros y activaciones."""
+    st.dataframe(pd.DataFrame(layer_table(model)).astype(str), hide_index=True, width="stretch")
+    st.caption(f"Parámetros entrenables: {model.count_params():,}")
+
+    if name != NOMBRE_CONVOLUCIONAL:
+        st.caption(
+            "La red densa no tiene estructura espacial: cada píxel entra como una característica "
+            "suelta, así que no hay filtros ni mapas de activación que mostrar."
+        )
+        return
+
+    st.markdown("**Filtros aprendidos por `Convolucion_1`**")
+    st.caption(
+        "Los 32 filtros de 3 × 3: el patrón que cada uno busca en cada parche de la imagen."
+    )
+    render_matrix_grid(first_conv_filters(model), columns=8, cell=0.7)
+
+    st.markdown("**Mapas de activación de `Convolucion_2`**")
+    if data is None:
+        st.info("Elegí una entrada para ver cómo responde cada filtro a ese dígito.")
+        return
+    st.caption(
+        "Los 64 mapas que deja la segunda convolución para esa entrada: dónde se enciende "
+        "cada filtro."
+    )
+    render_matrix_grid(activation_maps(model, data.pixels), columns=8, cell=0.7)
+
+
+def render_verdict(prediction: Prediction, actual_digit: int | None) -> None:
+    """Dice si la predicción coincide con la etiqueta real, cuando la hay."""
+    if actual_digit is None:
+        return
+    if prediction.digit == actual_digit:
+        st.success(f"Acertó: la etiqueta real es {actual_digit}.")
+    else:
+        st.error(f"Falló: la etiqueta real es {actual_digit} y respondió {prediction.digit}.")
+
+
+def render_network_view(name: str, artifact) -> None:
+    """Vista de una red: la predicción arriba y la anatomía abajo."""
+    st.subheader(REDES[name].titulo)
+
+    if artifact is None:
+        st.error(MENSAJE_SIN_REDES)
+        st.code(COMANDO_COMPARACION, language="bash")
+        return
+
+    model, metrics = artifact
+    st.caption(describe_metrics(metrics))
+
+    data = render_network_input(name)
+    if data is not None:
+        prediction = predict_with(name, model, data.pixels)
+        render_prediction(data.preview, prediction, data.caption)
+        render_verdict(prediction, data.actual_digit)
+
+    st.divider()
+    render_anatomy(name, model, data)
+
+
+def render_comparison_tab(artifacts: dict) -> None:
+    """Vista de comparación: las dos predicciones sobre la misma entrada y el contraste."""
+    st.subheader("Las dos redes sobre la misma entrada")
+    st.write(
+        "La imagen se prepara una sola vez. La densa recibe 784 píxeles sueltos; la "
+        "convolucional, la imagen de 28 × 28 con su vecindad."
+    )
+
+    if any(artifact is None for artifact in artifacts.values()):
+        st.error(MENSAJE_SIN_REDES)
+        st.code(COMANDO_COMPARACION, language="bash")
+        return
+
+    data = render_network_input("comparacion")
+    if data is not None:
+        predictions = {
+            name: predict_with(name, artifacts[name][0], data.pixels) for name in artifacts
+        }
+
+        preview_column, dense_column, conv_column = st.columns([1, 2, 2], gap="large")
+        with preview_column:
+            st.image(data.preview, caption=data.caption, width=140, clamp=True)
+        for column, name in ((dense_column, NOMBRE_DENSA), (conv_column, NOMBRE_CONVOLUCIONAL)):
+            prediction = predictions[name]
+            with column:
+                st.metric(
+                    label=REDES[name].titulo,
+                    value=prediction.digit,
+                    delta=f"{prediction.confidence:.1%} de confianza",
+                    delta_color="off",
+                )
+
+        dense = predictions[NOMBRE_DENSA]
+        conv = predictions[NOMBRE_CONVOLUCIONAL]
+        if dense.digit == conv.digit:
+            st.success(f"Las dos redes coinciden en el dígito {dense.digit}.")
+        else:
+            st.warning(
+                f"Las dos redes no coinciden: la densa dice {dense.digit} y la convolucional "
+                f"{conv.digit}."
+            )
+
+        if data.actual_digit is not None:
+            hits = [
+                REDES[name].titulo
+                for name, prediction in predictions.items()
+                if prediction.digit == data.actual_digit
+            ]
+            if len(hits) == len(predictions):
+                st.caption("Las dos aciertan la etiqueta real.")
+            elif hits:
+                st.caption(f"Sólo acierta {hits[0].lower()}.")
+            else:
+                st.caption("Ninguna de las dos acierta la etiqueta real.")
+
+    st.divider()
+    st.markdown("**Arquitectura y resultados**")
+    rows = []
+    for name, (model, metrics) in artifacts.items():
+        accuracy = metrics.get("test_accuracy")
+        rows.append(
+            {
+                "Red": REDES[name].titulo,
+                "Entrada": " × ".join(str(size) for size in REDES[name].forma_entrada),
+                "Parámetros": f"{model.count_params():,}",
+                "Exactitud en prueba": f"{accuracy:.2%}" if accuracy is not None else "?",
+            }
+        )
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.caption(
+        "La convolucional tiene menos parámetros porque cada pooling achica la imagen antes de "
+        "aplanarla: no necesita una conexión por píxel."
+    )
+
+
 def _format_count(value) -> str:
     """Formatea un conteo con separador de miles, o `?` si la métrica no existe."""
     return f"{value:,}" if isinstance(value, int) else "?"
@@ -246,7 +503,9 @@ def main() -> None:
     st.title("🔢 Práctica MNIST: dígitos escritos a mano")
     st.write(
         "La red densa del cuaderno `CodeTAM.ipynb` predice qué dígito escribiste. "
-        "Los tres caminos de abajo terminan en la misma predicción."
+        "Los tres caminos de abajo terminan en la misma predicción. Las otras tres pestañas "
+        "muestran las redes del cuaderno de clase `experimentos/scratchpad_3.ipynb`: la densa, "
+        "la convolucional y la comparación de las dos."
     )
 
     artifact = load_trained_model(str(model_directory()))
@@ -258,9 +517,17 @@ def main() -> None:
 
     model, metrics = artifact
     render_sidebar(model, metrics)
+    comparison_networks = load_comparison_networks(str(model_directory()))
 
-    upload_tab, canvas_tab, test_set_tab = st.tabs(
-        ["📤 Subir imagen", "✏️ Dibujar", "🎲 Muestra del test set"]
+    upload_tab, canvas_tab, test_set_tab, dense_tab, conv_tab, comparison_tab = st.tabs(
+        [
+            "📤 Subir imagen",
+            "✏️ Dibujar",
+            "🎲 Muestra del test set",
+            "🔵 Red densa",
+            "🟣 Red convolucional",
+            "⚖️ Comparación",
+        ]
     )
     with upload_tab:
         render_upload_tab(model)
@@ -268,6 +535,12 @@ def main() -> None:
         render_canvas_tab(model)
     with test_set_tab:
         render_test_set_tab(model)
+    with dense_tab:
+        render_network_view(NOMBRE_DENSA, comparison_networks[NOMBRE_DENSA])
+    with conv_tab:
+        render_network_view(NOMBRE_CONVOLUCIONAL, comparison_networks[NOMBRE_CONVOLUCIONAL])
+    with comparison_tab:
+        render_comparison_tab(comparison_networks)
 
 
 main()
